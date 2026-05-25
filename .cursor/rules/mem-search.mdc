@@ -1,0 +1,46 @@
+---
+description: Search claude-mem cross-session memory cheaply. Search for an index, filter, then fetch full details only for kept IDs. Use when recalling past work from previous sessions. Requires the claude-mem MCP.
+alwaysApply: false
+---
+
+# Mem Search
+
+Recall past work from claude-mem without burning tokens. Requires the claude-mem MCP (`search`, `timeline`, `get_observations` tools).
+
+Use when the user asks about PREVIOUS sessions, not the current conversation: "did we already fix this?", "how did we do X last time?", "what happened last week?".
+
+**Tradeoff**: one or two extra calls up front, roughly 10x token savings on recall.
+
+## The 3-layer workflow (always follow)
+
+Never fetch full details without filtering first. The index is cheap, full observations are expensive.
+
+### 1. Search, get the index
+
+```text
+search(query="authentication", limit=20, project="my-project")
+```
+
+Returns IDs, timestamps, types, titles (~50-100 tokens per result). Filters: `type` (observations/sessions/prompts), `obs_type` (bugfix, feature, decision, discovery, change), `dateStart`, `dateEnd`, `offset`, `orderBy`, `limit` (max 100).
+
+### 2. Timeline, get context around a result
+
+```text
+timeline(anchor=11131, depth_before=3, depth_after=3, project="my-project")
+```
+
+Returns a chronological window around an anchor. Pass `query` instead of `anchor` to find the anchor automatically. `depth_before` and `depth_after` default 5, max 20.
+
+### 3. Fetch, full details for kept IDs only
+
+Read the titles, keep the relevant IDs, discard the rest, then batch-fetch.
+
+```text
+get_observations(ids=[11131, 10942])
+```
+
+Always batch two or more IDs into one call: one request instead of N. Returns full observations (~500-1000 tokens each).
+
+## Why filter before fetch
+
+Search index ~50-100 tokens per result; full observation ~500-1000 tokens each; batch fetch is one request instead of N. Filtering before fetching is roughly 10x token savings.
